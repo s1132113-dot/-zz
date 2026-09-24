@@ -66,12 +66,18 @@
     .btn-line { background-color: #06C755; }
     .btn-reset { background-color: #7f8c8d; }
     .btn-sync { background-color: #f39c12; }
+
+    /* 手機版觸控優化的刪除按鈕 */
     .btn-del-item {
       background-color: #ff7675;
       color: white;
-      padding: 3px 8px;
-      font-size: 12px;
-      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 13px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
 
     /* 學生選擇按鈕網格 */
@@ -96,6 +102,7 @@
       font-weight: bold;
       cursor: pointer;
       text-align: center;
+      touch-action: manipulation;
     }
     .student-btn.selected {
       background-color: #e74c3c;
@@ -131,7 +138,7 @@
       font-weight: bold;
     }
     .action-buttons { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
-    .log-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .log-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
     /* 登記成功彈出通知面板 */
     .toast {
@@ -208,9 +215,9 @@
     <table>
       <thead>
         <tr>
-          <th style="width: 20%;">學生姓名/座號</th>
-          <th style="width: 15%;">被登記項數</th>
-          <th style="width: 65%;">詳細未交紀錄 (可刪除)</th>
+          <th style="width: 25%;">學生姓名/座號</th>
+          <th style="width: 20%;">被登記項數</th>
+          <th style="width: 55%;">詳細未交紀錄 (可刪除)</th>
         </tr>
       </thead>
       <tbody id="statTableBody">
@@ -241,7 +248,7 @@
       setInterval(fetchCloudData, 8000);
     };
 
-    // 顯示「登記成功」浮動通知
+    // 顯示提示浮動通知
     function showToast(message) {
       const toast = document.getElementById('toast');
       if (message) toast.innerText = message;
@@ -279,7 +286,7 @@
       });
     }
 
-    // 寫入資料至 Google 試算表 (使用 GET 避開 CORS 阻擋)
+    // 寫入資料至 Google 試算表 (GET 避開 CORS 阻擋)
     function saveToCloud(showToastNotice = false) {
       document.getElementById('syncStatus').innerText = "⏳ 正在更新至 Google 試算表...";
       document.getElementById('syncStatus').style.color = "#f39c12";
@@ -293,7 +300,9 @@
       document.body.appendChild(script);
 
       setTimeout(() => {
-        document.body.removeChild(script);
+        if (document.body.contains(script)) {
+          document.body.removeChild(script);
+        }
         fetchCloudData();
         if (showToastNotice) {
           showToast("🎉 登記成功！資料已同步至試算表");
@@ -335,15 +344,24 @@
 
       selectedThisTime.clear();
       document.getElementById('hwName').value = '';
-      saveToCloud(true); // 送出登記時觸發 Toast 通知
+      saveToCloud(true);
     }
 
+    // 手機版相容的單筆刪除函式
     function deleteSingleLog(name, logIndex) {
-      if (confirm(`確定要刪除 ${name} 的這筆缺交紀錄嗎？`)) {
-        records[name].logs.splice(logIndex, 1);
-        records[name].count -= 1;
-        saveToCloud();
-      }
+      setTimeout(() => {
+        if (window.confirm(`確定要刪除 ${name} 的這筆缺交紀錄嗎？`)) {
+          if (records[name] && records[name].logs) {
+            records[name].logs.splice(logIndex, 1);
+            records[name].count = records[name].logs.length;
+            
+            renderStudentGrid();
+            renderTable();
+            saveToCloud(false);
+            showToast("🗑️ 已成功刪除紀錄");
+          }
+        }
+      }, 50);
     }
 
     function resetAllData() {
@@ -361,7 +379,7 @@
 
       studentNames.forEach(name => {
         const data = records[name];
-        if (data && data.count > 0) {
+        if (data && data.count > 0 && data.logs && data.logs.length > 0) {
           hasData = true;
           const tr = document.createElement('tr');
           let logDetailsHTML = '';
@@ -369,7 +387,7 @@
             logDetailsHTML += `
               <div class="log-item">
                 <span>• [${l.date}] ${l.hw} (${l.recorder}記)</span>
-                <button class="btn-del-item" onclick="deleteSingleLog('${name}', ${index})">🗑️ 刪除</button>
+                <button class="btn-del-item" type="button" onclick="deleteSingleLog('${name}', ${index})">🗑️ 刪除</button>
               </div>
             `;
           });
@@ -388,7 +406,7 @@
       let hasData = false;
       studentNames.forEach(name => {
         const data = records[name];
-        if (data && data.count > 0) {
+        if (data && data.count > 0 && data.logs && data.logs.length > 0) {
           hasData = true;
           text += `\n👤 ${name}（累計未交 ${data.count} 項）：\n`;
           data.logs.forEach(l => { text += `  └ ${l.date} - ${l.hw} (${l.recorder})\n`; });
